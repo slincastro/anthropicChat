@@ -21,7 +21,10 @@ class ClaudeResponseBox extends StatefulWidget {
 
 class _ClaudeResponseBoxState extends State<ClaudeResponseBox> {
   bool _showThinking = true;
-  final ScrollController _scrollController = ScrollController();
+  final ScrollController _thinkingScrollController = ScrollController();
+  final ScrollController _responseScrollController = ScrollController();
+
+  String _lastBuffer = '';
 
   void _toggleThinking() {
     setState(() {
@@ -37,6 +40,20 @@ class _ClaudeResponseBoxState extends State<ClaudeResponseBox> {
         widget.thinkingChunks.isNotEmpty;
 
     if (!hasContent) return const SizedBox.shrink();
+
+    // Auto-scroll response if buffer changed
+    if (_lastBuffer != widget.responseBuffer.toString()) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_responseScrollController.hasClients) {
+          _responseScrollController.animateTo(
+            _responseScrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+        }
+      });
+      _lastBuffer = widget.responseBuffer.toString();
+    }
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -83,13 +100,13 @@ class _ClaudeResponseBoxState extends State<ClaudeResponseBox> {
               ),
               margin: const EdgeInsets.only(bottom: 12),
               child: ListView.builder(
-                controller: _scrollController,
+                controller: _thinkingScrollController,
                 itemCount: widget.thinkingChunks.length,
                 itemBuilder: (context, index) {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (_scrollController.hasClients) {
-                      _scrollController.animateTo(
-                        _scrollController.position.maxScrollExtent,
+                    if (_thinkingScrollController.hasClients) {
+                      _thinkingScrollController.animateTo(
+                        _thinkingScrollController.position.maxScrollExtent,
                         duration: const Duration(milliseconds: 300),
                         curve: Curves.easeOut,
                       );
@@ -139,11 +156,12 @@ class _ClaudeResponseBoxState extends State<ClaudeResponseBox> {
               ),
             ),
 
-          // Final response markdown
+          // Final response with auto-scroll
           if (widget.responseBuffer.isNotEmpty)
             SizedBox(
               height: 250,
               child: SingleChildScrollView(
+                controller: _responseScrollController,
                 child: MarkdownBody(
                   data: widget.responseBuffer.toString(),
                   styleSheet:
