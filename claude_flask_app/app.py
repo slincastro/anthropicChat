@@ -1,7 +1,7 @@
 from flask import Flask, Response, request, stream_with_context, session
 from flask_cors import CORS
 from claude_streamer import stream_claude_response
-from thought_chain import create_thought_loop_chain
+#from thought_chain import create_thought_loop_chain
 import os
 import tempfile
 import mimetypes
@@ -27,7 +27,6 @@ file_storage = {}
 def home():
     return "Claude 3.5 Streaming + LangChain Flask Service"
 
-# Allowed file extensions
 ALLOWED_EXTENSIONS = {'pdf', 'txt', 'jpg', 'jpeg', 'png', 'gif'}
 
 def allowed_file(filename):

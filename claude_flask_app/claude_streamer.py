@@ -11,18 +11,19 @@ import mimetypes
 import PyPDF2
 import io
 
-
+liteLlm_proxy = ""
 # Load API key from config.json
 with open('config.json', 'r') as f:
     config = json.load(f)
-    CLAUDE_API_KEY = config['openai']['claude_key']
+    CLAUDE_API_KEY = config['Litellm']['claude_key']
+    liteLlm_proxy = config['Litellm']['proxy']
 
 
 
 # Usa tu proxy LiteLLM como base_url
 client = Anthropic(
-    api_key=os.getenv("CLAUDE_API_KEY", CLAUDE_API_KEY),
-    base_url="https://ipsos.litellm-prod.ai"  
+    api_key = os.getenv("CLAUDE_API_KEY", CLAUDE_API_KEY),
+    base_url =  liteLlm_proxy
 )
 
 def stream_claude_response(
