@@ -36,10 +36,11 @@ class ClaudeHome extends StatefulWidget {
 
 class _ClaudeHomeState extends State<ClaudeHome> {
   final TextEditingController _controller = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   final ClaudeApiService _apiService = ClaudeApiService();
 
   StringBuffer _responseBuffer = StringBuffer();
-  int _thinkingTokens = 100; // default value
+  int _thinkingTokens = 100;
 
   EventSource? _eventSource;
 
@@ -69,14 +70,7 @@ class _ClaudeHomeState extends State<ClaudeHome> {
         thinkingTokens: _thinkingTokens,
         onChunk: (chunk) {
           try {
-            // Skip empty chunks
-            if (chunk.isEmpty) {
-              print('Received empty chunk, skipping');
-              return;
-            }
-
-            print(
-                'Received chunk: ${chunk.substring(0, chunk.length > 50 ? 50 : chunk.length)}...');
+            if (chunk.isEmpty) return;
 
             final json = Map<String, dynamic>.from(
                 jsonDecode(chunk) as Map<String, dynamic>);
@@ -85,11 +79,9 @@ class _ClaudeHomeState extends State<ClaudeHome> {
               setState(() {
                 _responseBuffer.write(json['text']);
               });
+              _scrollToBottom();
             } else if (json['type'] == 'thinking') {
-              // Immediately update UI with thinking data
-              print('🧠 Received thinking chunk at ${json['timestamp']}s');
               setState(() {
-                // Add to thinking chunks for display
                 _thinkingChunks.add({
                   'timestamp': json['timestamp'],
                   'thinking': json['thinking']
@@ -97,17 +89,13 @@ class _ClaudeHomeState extends State<ClaudeHome> {
               });
             }
           } catch (e) {
-            // Fallback for plain text chunks
-            print(
-                'Error parsing JSON: $e, chunk: ${chunk.substring(0, chunk.length > 20 ? 20 : chunk.length)}');
-
-            // Only try to append if it looks like valid text
             if (chunk.isNotEmpty &&
                 !chunk.startsWith('{') &&
                 !chunk.startsWith('[')) {
               setState(() {
                 _responseBuffer.write(chunk);
               });
+              _scrollToBottom();
             }
           }
         },
@@ -151,10 +139,23 @@ class _ClaudeHomeState extends State<ClaudeHome> {
     });
   }
 
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
   @override
   void dispose() {
     _apiService.closeStream(_eventSource);
     _controller.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -165,45 +166,73 @@ class _ClaudeHomeState extends State<ClaudeHome> {
         isStreaming: _isStreaming,
         onReset: _resetChat,
       ),
-      body: Padding(
-        padding: EdgeInsets.all(AppConfig.defaultPadding),
-        child: Column(
-          children: [
-            ClaudeInputField(
-              controller: _controller,
-              isStreaming: _isStreaming,
-              onSubmitted: _sendQuestion,
-            ),
-            const SizedBox(height: 16),
-            ClaudeSendButton(
-              isStreaming: _isStreaming,
-              onPressed: _sendQuestion,
-            ),
-            const SizedBox(height: 16),
-
-            // 🧠 Toggle extended thinking
-            Row(
-              mainAxisAlignment: MainAxisAlignment.start,
+      body: Column(
+        children: [
+          // 💬 Respuestas en scroll
+          Flexible(
+            child: ListView(
+              controller: _scrollController,
+              padding: EdgeInsets.all(AppConfig.defaultPadding),
               children: [
-                const Text("🧠 Extended Thinking"),
-                Switch(
-                  value: _extendedThinkingEnabled,
-                  onChanged: (val) {
-                    setState(() {
-                      _extendedThinkingEnabled = val;
-                    });
-                  },
+                if (_hasError)
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF8B0000).withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      _errorMessage,
+                      style: const TextStyle(color: Colors.redAccent),
+                    ),
+                  ),
+                ClaudeResponseBox(
+                  responseBuffer: _responseBuffer,
+                  isStreaming: _isStreaming,
+                  hasError: _hasError,
+                  thinkingChunks: _thinkingChunks,
                 ),
+              ],
+            ),
+          ),
+
+          // 🧠 Opciones + Input abajo
+          Container(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Switch de Extended Thinking
+                Row(
+                  children: [
+                    const Icon(Icons.psychology_outlined,
+                        color: Colors.white70),
+                    const SizedBox(width: 8),
+                    const Text("Extended Thinking"),
+                    const Spacer(),
+                    Switch(
+                      value: _extendedThinkingEnabled,
+                      onChanged: (val) {
+                        setState(() {
+                          _extendedThinkingEnabled = val;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+
                 if (_extendedThinkingEnabled)
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(" Thinking Tokens #"),
+                      const Text("🧠 Thinking Tokens"),
                       Slider(
                         value: _thinkingTokens.toDouble(),
                         min: 10,
                         max: 32000,
-                        divisions: 99,
+                        divisions: 100,
                         label: '$_thinkingTokens',
                         onChanged: (double value) {
                           setState(() {
@@ -213,57 +242,31 @@ class _ClaudeHomeState extends State<ClaudeHome> {
                       ),
                     ],
                   ),
-              ],
-            ),
-            const SizedBox(height: 8),
 
-            // 📥 Status + Error message
-            Row(
-              children: [
-                const Text('💬 Response:',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                const Spacer(),
-                if (_isStreaming)
-                  const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                const SizedBox(height: 12),
+
+                // Input + botón
+                Row(
+                  children: [
+                    Expanded(
+                      child: ClaudeInputField(
+                        controller: _controller,
+                        isStreaming: _isStreaming,
+                        onSubmitted: _sendQuestion,
                       ),
-                      SizedBox(width: 8),
-                      Text('Streaming...'),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: 8),
+                    ClaudeSendButton(
+                      isStreaming: _isStreaming,
+                      onPressed: _sendQuestion,
+                      label: 'Ask',
+                    ),
+                  ],
+                ),
               ],
             ),
-            const SizedBox(height: 8),
-            if (_hasError)
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF8B0000).withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                width: double.infinity,
-                child: Text(
-                  _errorMessage,
-                  style: const TextStyle(color: Colors.redAccent),
-                ),
-              ),
-
-            // Thinking steps are now displayed in the ClaudeResponseBox
-
-            // 💬 Final response
-            ClaudeResponseBox(
-              responseBuffer: _responseBuffer,
-              isStreaming: _isStreaming,
-              hasError: _hasError,
-              thinkingChunks: _thinkingChunks,
-            )
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

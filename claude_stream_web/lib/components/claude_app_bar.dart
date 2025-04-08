@@ -13,7 +13,7 @@ class ClaudeAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     return AppBar(
-      title: const Text('Claude 3 Streaming 🌐'),
+      title: const Text('Claude 3 Streaming POC 🌐'),
       actions: [
         IconButton(
           icon: const Icon(Icons.refresh),

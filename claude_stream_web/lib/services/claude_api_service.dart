@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:html'; // SSE para Flutter Web
+import 'dart:html'; // Solo Flutter Web
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
 
@@ -21,7 +21,7 @@ class ClaudeApiService {
         '$apiUrl/stream?question=$encodedQuestion&thinking=$extendedThinking&tokens=$thinkingTokens';
 
     try {
-      // Enviar POST para iniciar el procesamiento en el backend (opcional, según tu servidor)
+      // Opción: quitar si no se necesita
       final postResponse = await http.post(
         Uri.parse('$apiUrl/stream'),
         headers: {'Content-Type': 'application/json'},
@@ -36,7 +36,6 @@ class ClaudeApiService {
         throw Exception("POST failed: ${postResponse.body}");
       }
 
-      // Conectar con SSE
       final eventSource = EventSource(streamUrl);
 
       eventSource.onOpen.listen((_) {

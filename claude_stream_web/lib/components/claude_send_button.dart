@@ -3,24 +3,20 @@ import 'package:flutter/material.dart';
 class ClaudeSendButton extends StatelessWidget {
   final bool isStreaming;
   final VoidCallback onPressed;
+  final String label;
 
   const ClaudeSendButton({
     super.key,
     required this.isStreaming,
     required this.onPressed,
+    this.label = 'Send',
   });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        ElevatedButton.icon(
-          onPressed: isStreaming ? null : onPressed,
-          icon: const Icon(Icons.send),
-          label: const Text('Send'),
-        ),
-      ],
+    return ElevatedButton(
+      onPressed: isStreaming ? null : onPressed,
+      child: Text(label),
     );
   }
 }
