@@ -23,39 +23,39 @@ class ClaudeApiService {
         '$apiUrl/stream?question=$encodedQuestion&thinking=$extendedThinking&tokens=$thinkingTokens';
 
     try {
-      // Create multipart request for file uploads
-      final request =
-          http.MultipartRequest('POST', Uri.parse('$apiUrl/stream'));
-
-      // Add text fields
-      request.fields['question'] = question;
-      request.fields['thinking'] = extendedThinking.toString();
-      request.fields['tokens'] = thinkingTokens.toString();
-
-      // Add files if any
-      for (var i = 0; i < files.length; i++) {
-        final file = files[i];
-        if (file.base64Data != null) {
-          final bytes = base64Decode(file.base64Data!);
-          final multipartFile = http.MultipartFile.fromBytes(
-            'file_$i',
-            bytes,
-            filename: file.name,
-          );
-          request.files.add(multipartFile);
-        }
-      }
-
-      // Send the request
-      final streamedResponse = await request.send();
-      final postResponse = await http.Response.fromStream(streamedResponse);
-
-      if (postResponse.statusCode != 200) {
-        throw Exception("POST failed: ${postResponse.body}");
-      }
-
-      // For POST requests with files, we need to handle the response directly
+      // If we have files, use POST request with multipart/form-data
       if (files.isNotEmpty) {
+        // Create multipart request for file uploads
+        final request =
+            http.MultipartRequest('POST', Uri.parse('$apiUrl/stream'));
+
+        // Add text fields
+        request.fields['question'] = question;
+        request.fields['thinking'] = extendedThinking.toString();
+        request.fields['tokens'] = thinkingTokens.toString();
+
+        // Add files
+        for (var i = 0; i < files.length; i++) {
+          final file = files[i];
+          if (file.base64Data != null) {
+            final bytes = base64Decode(file.base64Data!);
+            final multipartFile = http.MultipartFile.fromBytes(
+              'file_$i',
+              bytes,
+              filename: file.name,
+            );
+            request.files.add(multipartFile);
+          }
+        }
+
+        // Send the request
+        final streamedResponse = await request.send();
+        final postResponse = await http.Response.fromStream(streamedResponse);
+
+        if (postResponse.statusCode != 200) {
+          throw Exception("POST failed: ${postResponse.body}");
+        }
+
         // Parse the response and extract the chunks
         final responseText = postResponse.body;
         final lines = responseText.split('\n');
@@ -77,29 +77,29 @@ class ClaudeApiService {
             html.EventSource(streamUrl, withCredentials: true);
         dummyEventSource.close();
         return dummyEventSource;
-      } else {
-        // For GET requests or POST without files, use EventSource
-        final eventSource = html.EventSource(streamUrl, withCredentials: true);
-
-        eventSource.onOpen.listen((_) {
-          print("✅ [ClaudeApiService] SSE connection opened");
-        });
-
-        eventSource.onMessage.listen((event) {
-          final data = event.data ?? '';
-          print(
-              "📥 [ClaudeApiService] Chunk received: ${data.length > 60 ? data.substring(0, 60) + '...' : data}");
-          onChunk(data);
-        });
-
-        eventSource.onError.listen((error) {
-          print("❌ [ClaudeApiService] SSE error: $error");
-          eventSource.close();
-          onError();
-        });
-
-        return eventSource;
       }
+
+      // For requests without files, use EventSource (GET request)
+      final eventSource = html.EventSource(streamUrl, withCredentials: true);
+
+      eventSource.onOpen.listen((_) {
+        print("✅ [ClaudeApiService] SSE connection opened");
+      });
+
+      eventSource.onMessage.listen((event) {
+        final data = event.data ?? '';
+        print(
+            "📥 [ClaudeApiService] Chunk received: ${data.length > 60 ? data.substring(0, 60) + '...' : data}");
+        onChunk(data);
+      });
+
+      eventSource.onError.listen((error) {
+        print("❌ [ClaudeApiService] SSE error: $error");
+        eventSource.close();
+        onError();
+      });
+
+      return eventSource;
     } catch (e) {
       print("❌ [ClaudeApiService] Exception: $e");
       onError();

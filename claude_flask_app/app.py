@@ -8,11 +8,13 @@ import mimetypes
 import base64
 import uuid
 import shutil
+import json
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)  # Required for session
-CORS(app)  # Enable CORS for frontend calls
+# Enable CORS for frontend calls with credentials support
+CORS(app, supports_credentials=True)
 
 # Create a directory to store uploaded files
 UPLOAD_FOLDER = os.path.join(tempfile.gettempdir(), 'claude_uploads')
@@ -31,8 +33,17 @@ ALLOWED_EXTENSIONS = {'pdf', 'txt', 'jpg', 'jpeg', 'png', 'gif'}
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-@app.route("/stream", methods=["GET", "POST"])
+@app.route("/stream", methods=["GET", "POST", "OPTIONS"])
 def stream():
+    # Handle preflight OPTIONS request
+    if request.method == "OPTIONS":
+        response = Response()
+        response.headers.add('Access-Control-Allow-Origin', request.headers.get('Origin', '*'))
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+        response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        return response
+        
     files = []
     session_id = request.cookies.get('session_id')
     
@@ -106,14 +117,29 @@ def stream():
         mimetype="text/event-stream"
     )
     
+    # Add CORS headers explicitly
+    response.headers.add('Access-Control-Allow-Origin', request.headers.get('Origin', '*'))
+    response.headers.add('Access-Control-Allow-Credentials', 'true')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+    response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+    
     # Set session cookie with SameSite=None and Secure=True for cross-origin requests
     response.set_cookie('session_id', session_id, max_age=3600, samesite='None', secure=True)  # 1 hour expiry
     
     return response
 
-@app.route("/clear_files", methods=["POST"])
+@app.route("/clear_files", methods=["POST", "OPTIONS"])
 def clear_files():
     """Clear files for a session"""
+    # Handle preflight OPTIONS request
+    if request.method == "OPTIONS":
+        response = Response()
+        response.headers.add('Access-Control-Allow-Origin', request.headers.get('Origin', '*'))
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+        response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
+        return response
+        
     session_id = request.cookies.get('session_id')
     if session_id and session_id in file_storage:
         # Delete files
@@ -123,8 +149,14 @@ def clear_files():
         
         # Clear from storage
         del file_storage[session_id]
-        
-    return {"status": "success"}
+    
+    response = {"status": "success"}
+    # Add CORS headers to the response
+    response = Response(json.dumps(response), mimetype="application/json")
+    response.headers.add('Access-Control-Allow-Origin', request.headers.get('Origin', '*'))
+    response.headers.add('Access-Control-Allow-Credentials', 'true')
+    
+    return response
 
 if __name__ == "__main__":
     app.run(debug=True, port=5001)
