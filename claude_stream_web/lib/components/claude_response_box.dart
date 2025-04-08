@@ -73,7 +73,7 @@ class _ClaudeResponseBoxState extends State<ClaudeResponseBox> {
               ),
             ),
 
-          // Thinking steps
+          // Thinking steps section with auto-scroll
           if (_showThinking && widget.thinkingChunks.isNotEmpty)
             Container(
               height: 150,
@@ -86,6 +86,16 @@ class _ClaudeResponseBoxState extends State<ClaudeResponseBox> {
                 controller: _scrollController,
                 itemCount: widget.thinkingChunks.length,
                 itemBuilder: (context, index) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (_scrollController.hasClients) {
+                      _scrollController.animateTo(
+                        _scrollController.position.maxScrollExtent,
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeOut,
+                      );
+                    }
+                  });
+
                   final chunk = widget.thinkingChunks[index];
                   return Padding(
                     padding:
@@ -117,7 +127,7 @@ class _ClaudeResponseBoxState extends State<ClaudeResponseBox> {
               ),
             ),
 
-          // 🌀 Loading spinner
+          // Spinner while streaming and no response yet
           if (widget.isStreaming && widget.responseBuffer.isEmpty)
             const Center(
               child: Padding(
