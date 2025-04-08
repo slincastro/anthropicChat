@@ -25,11 +25,30 @@ class _ClaudeResponseBoxState extends State<ClaudeResponseBox> {
   final ScrollController _responseScrollController = ScrollController();
 
   String _lastBuffer = '';
+  bool _wasResponseEmpty = true;
 
   void _toggleThinking() {
     setState(() {
       _showThinking = !_showThinking;
     });
+  }
+
+  @override
+  void didUpdateWidget(ClaudeResponseBox oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // Check if response buffer was empty and now has content
+    if (_wasResponseEmpty && widget.responseBuffer.isNotEmpty) {
+      setState(() {
+        _showThinking = false;
+        _wasResponseEmpty = false;
+      });
+    }
+
+    // Reset the flag if response buffer becomes empty again
+    if (widget.responseBuffer.isEmpty) {
+      _wasResponseEmpty = true;
+    }
   }
 
   @override
