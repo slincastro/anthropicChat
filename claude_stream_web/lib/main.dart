@@ -40,7 +40,14 @@ class _ClaudeHomeState extends State<ClaudeHome> {
   final ClaudeApiService _apiService = ClaudeApiService();
 
   StringBuffer _responseBuffer = StringBuffer();
-  int _thinkingTokens = 100;
+  int _thinkingTokens = 1024;
+
+  final int _minTokens = 1024;
+  final int _maxTokens = 32000;
+  late final int _firstThreshold =
+      _minTokens + ((_maxTokens - _minTokens) ~/ 3);
+  late final int _secondThreshold =
+      _minTokens + 2 * ((_maxTokens - _minTokens) ~/ 3);
 
   EventSource? _eventSource;
 
@@ -151,6 +158,18 @@ class _ClaudeHomeState extends State<ClaudeHome> {
     });
   }
 
+  Color getButtonColor() {
+    if (_thinkingTokens <= _firstThreshold) return const Color(0xFF39D2C0);
+    if (_thinkingTokens <= _secondThreshold) return const Color(0xFFCA6C45);
+    return const Color(0xFFE74852);
+  }
+
+  String getTokenLabel() {
+    if (_thinkingTokens <= _firstThreshold) return 'Easy Tasks';
+    if (_thinkingTokens <= _secondThreshold) return 'Medium Tasks';
+    return 'Hard Tasks';
+  }
+
   @override
   void dispose() {
     _apiService.closeStream(_eventSource);
@@ -179,7 +198,7 @@ class _ClaudeHomeState extends State<ClaudeHome> {
                     padding: const EdgeInsets.all(8),
                     margin: const EdgeInsets.only(bottom: 12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF8B0000).withOpacity(0.3),
+                      color: const Color(0xFFE74852).withOpacity(0.3),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
@@ -227,18 +246,42 @@ class _ClaudeHomeState extends State<ClaudeHome> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text("🧠 Thinking Tokens"),
+                      Row(
+                        children: [
+                          const Text("🧠 Thinking Tokens: "),
+                          Text(
+                            '$_thinkingTokens',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: getButtonColor(),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            getTokenLabel(),
+                            style: TextStyle(
+                              fontStyle: FontStyle.italic,
+                              color: getButtonColor(),
+                            ),
+                          ),
+                        ],
+                      ),
                       Slider(
                         value: _thinkingTokens.toDouble(),
-                        min: 10,
-                        max: 32000,
+                        min: _minTokens.toDouble(),
+                        max: _maxTokens.toDouble(),
                         divisions: 100,
                         label: '$_thinkingTokens',
+                        activeColor: getButtonColor(),
                         onChanged: (double value) {
                           setState(() {
                             _thinkingTokens = value.toInt();
                           });
                         },
+                      ),
+                      const Text(
+                        "Higher token budgets may improve answers but also increase cost/time.",
+                        style: TextStyle(fontSize: 12, color: Colors.white38),
                       ),
                     ],
                   ),
@@ -260,6 +303,7 @@ class _ClaudeHomeState extends State<ClaudeHome> {
                       isStreaming: _isStreaming,
                       onPressed: _sendQuestion,
                       label: 'Ask',
+                      buttonColor: getButtonColor(),
                     ),
                   ],
                 ),
