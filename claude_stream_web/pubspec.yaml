@@ -37,6 +37,8 @@ dependencies:
   cupertino_icons: ^1.0.8
   http: ^1.2.0
   flutter_markdown: ^0.6.18
+  file_picker: ^6.1.1  # For file selection
+  dotted_border: ^2.1.0  # For styling the drop zone
 
 dev_dependencies:
   flutter_test:

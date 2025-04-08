@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:html'; // SSE support for Flutter Web
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import 'services/claude_api_service.dart';
@@ -9,6 +10,7 @@ import 'components/claude_app_bar.dart';
 import 'components/claude_input_field.dart';
 import 'components/claude_send_button.dart';
 import 'components/claude_response_box.dart';
+import 'components/claude_drop_zone.dart';
 
 void main() {
   runApp(const ClaudeApp());
@@ -57,10 +59,11 @@ class _ClaudeHomeState extends State<ClaudeHome> {
   bool _extendedThinkingEnabled = false;
 
   List<Map<String, dynamic>> _thinkingChunks = [];
+  List<UploadedFile> _uploadedFiles = [];
 
   void _sendQuestion() async {
     final question = _controller.text.trim();
-    if (question.isEmpty) return;
+    if (question.isEmpty && _uploadedFiles.isEmpty) return;
 
     setState(() {
       _responseBuffer.clear();
@@ -71,13 +74,18 @@ class _ClaudeHomeState extends State<ClaudeHome> {
     });
 
     try {
+      // Always use POST for requests to maintain session
       _eventSource = await _apiService.streamResponse(
         question: question,
+        files: _uploadedFiles,
         extendedThinking: _extendedThinkingEnabled,
         thinkingTokens: _thinkingTokens,
         onChunk: (chunk) {
           try {
             if (chunk.isEmpty) return;
+
+            print(
+                "Processing chunk: ${chunk.substring(0, math.min(30, chunk.length))}...");
 
             final json = Map<String, dynamic>.from(
                 jsonDecode(chunk) as Map<String, dynamic>);
@@ -96,6 +104,7 @@ class _ClaudeHomeState extends State<ClaudeHome> {
               });
             }
           } catch (e) {
+            print("Error processing chunk: $e");
             if (chunk.isNotEmpty &&
                 !chunk.startsWith('{') &&
                 !chunk.startsWith('[')) {
@@ -140,6 +149,7 @@ class _ClaudeHomeState extends State<ClaudeHome> {
     setState(() {
       _responseBuffer.clear();
       _thinkingChunks.clear();
+      _uploadedFiles = [];
       _isStreaming = false;
       _hasError = false;
       _errorMessage = '';
@@ -296,13 +306,23 @@ class _ClaudeHomeState extends State<ClaudeHome> {
                         controller: _controller,
                         isStreaming: _isStreaming,
                         onSubmitted: _sendQuestion,
+                        files: _uploadedFiles,
+                        onFilesChanged: (files) {
+                          setState(() {
+                            _uploadedFiles = files;
+                          });
+                        },
                       ),
                     ),
                     const SizedBox(width: 8),
                     ClaudeSendButton(
                       isStreaming: _isStreaming,
-                      onPressed: _sendQuestion,
-                      label: 'Ask',
+                      onPressed: () {
+                        if (!_isStreaming) {
+                          _sendQuestion();
+                        }
+                      },
+                      label: _uploadedFiles.isNotEmpty ? 'Send' : 'Ask',
                       buttonColor: getButtonColor(),
                     ),
                   ],
